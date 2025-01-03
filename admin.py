@@ -1,7 +1,7 @@
 import sys
 import tkinter as tk
 from tkinter import *
-from tkinter import simpledialog, ttk, messagebox
+from tkinter import ttk, messagebox
 import pymysql
 from datetime import datetime
 from subprocess import call
@@ -70,14 +70,16 @@ class AplikasiInventaris(tk.Tk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
 
-    def update_treeview(self, results=None):
+    def update_treeview(self):
         self.treeview_user.delete(*self.treeview_user.get_children())
-        query = "SELECT username, level FROM user"
+
+        query = "SELECT id, password, username, level FROM user"
         self.cursor.execute(query)
         data = self.cursor.fetchall()
 
         for row in data:
-            self.treeview_user.insert("", tk.END, values=[row[0], row[1]])
+            # row[0] = id, row[1] = password, row[2] = username, row[3] = level
+            self.treeview_user.insert("", tk.END, iid=row[0], values=(row[2], row[3]))
 
     # def tambah_user(self):
     #     nama = simpledialog.askstring("Tambah User", "Masukkan nama user:")
@@ -91,7 +93,6 @@ class AplikasiInventaris(tk.Tk):
     #     self.update_treeview()
 
     def tambah_user(self):
-        """Fungsi untuk menambahkan user baru ke dalam database."""
         def submit_user():
             username = entry_username.get().strip()
             password = entry_password.get().strip()
@@ -132,27 +133,36 @@ class AplikasiInventaris(tk.Tk):
 
 
     def edit_user(self):
-        """Fungsi untuk mengedit user yang sudah ada di database."""
         selected_item = self.treeview_user.selection()
         if not selected_item:
             messagebox.showerror("Error", "Pilih user yang ingin diedit!")
             return
 
-        item = self.treeview_user.item(selected_item)
-        old_username = item['values'][0]
+        id_user = selected_item[0]  # Ambil ID dari selection
+        query = "SELECT password, username, level FROM user WHERE id=%s"
+        self.cursor.execute(query, (id_user,))
+        row = self.cursor.fetchone()
+
+        if not row:
+            messagebox.showerror("Error", "Data user tidak ditemukan!")
+            return
+
+        old_password, old_username, old_level = row
 
         def submit_edit():
             new_username = entry_username.get().strip()
             new_password = entry_password.get().strip()
             new_level = combo_level.get().strip()
 
+            if new_password == '*' * len(old_password):
+                new_password = old_password  # Password tidak diubah
             if not new_username or not new_password or new_level == "Pilih level":
                 messagebox.showerror("Error", "Semua kolom harus diisi!")
                 return
 
             # Update data di database
-            query = "UPDATE user SET username=%s, password=%s, level=%s WHERE username=%s"
-            self.cursor.execute(query, (new_username, new_password, new_level, old_username))
+            query = "UPDATE user SET username=%s, password=%s, level=%s WHERE id=%s"
+            self.cursor.execute(query, (new_username, new_password, new_level, id_user))
             self.conn.commit()
 
             self.update_treeview()
@@ -170,31 +180,31 @@ class AplikasiInventaris(tk.Tk):
         entry_username.pack(pady=5)
 
         tk.Label(window, text="Password:").pack(pady=5)
-        entry_password = tk.Entry(window)
-        entry_password.insert(0, "")
+        entry_password = tk.Entry(window, show="*")
+        entry_password.insert(0, '*' * len(old_password))
         entry_password.pack(pady=5)
 
         tk.Label(window, text="Level:").pack(pady=5)
         combo_level = ttk.Combobox(window, values=["Admin", "User"], state="readonly")
-        combo_level.set(item['values'][1])
+        combo_level.set(old_level)
         combo_level.pack(pady=5)
 
         tk.Button(window, text="Submit", command=submit_edit).pack(pady=10)
 
     def hapus_user(self):
-        """Fungsi untuk menghapus user dari database."""
         selected_item = self.treeview_user.selection()
         if not selected_item:
             messagebox.showerror("Error", "Pilih user yang ingin dihapus!")
             return
 
+        id_user = selected_item[0]
         item = self.treeview_user.item(selected_item)
         username = item['values'][0]
 
         confirm = messagebox.askyesno("Konfirmasi", f"Apakah Anda yakin ingin menghapus user '{username}'?")
         if confirm:
-            query = "DELETE FROM user WHERE username=%s"
-            self.cursor.execute(query, (username,))
+            query = "DELETE FROM user WHERE id=%s"
+            self.cursor.execute(query, (id_user,))
             self.conn.commit()
 
             self.update_treeview()
@@ -240,7 +250,6 @@ class AplikasiInventaris(tk.Tk):
             treeview_trans.insert("", tk.END, values=row)
 
     def cari_user(self):
-        """Fungsi untuk mencari user berdasarkan username."""
         query = self.entry_cari.get().strip()
         if not query:
             self.update_treeview()

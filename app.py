@@ -1,5 +1,6 @@
 import sys
 import tkinter as tk
+from tkinter import *
 from tkinter import simpledialog, ttk, messagebox
 import pymysql
 from datetime import datetime
@@ -27,14 +28,36 @@ class AplikasiInventaris(tk.Tk):
         self.conn = pymysql.connect(
             host="localhost",
             user="root",
-            password="aldima15",  # Sesuaikan dengan password MySQL Anda
+            password="aldima15",
             database="inventaris"
         )
         self.cursor = self.conn.cursor()
 
-        self.label_info = tk.Label(self, text="Informasi Barang", font=("Helvetica", 16, "bold"))
-        self.label_info.grid(row=0, column=0, columnspan=2, pady=10)
+        # Frame untuk Title dan Pencarian
+        title_frame = tk.Frame(self)
+        title_frame.grid(row=0, column=0, columnspan=2, pady=10, sticky="ew")
 
+        # Label Informasi Barang (Title)
+        self.label_info = tk.Label(title_frame, text="Informasi Barang", font=("Helvetica", 16, "bold"))
+        self.label_info.grid(row=0, column=0, sticky="w", padx=5)
+
+        # Label Cari
+        self.label_cari = tk.Label(title_frame, text="Cari Nama Barang:")
+        self.label_cari.grid(row=0, column=1, padx=5, sticky="e")
+
+        # Entry Cari
+        self.entry_cari = tk.Entry(title_frame)
+        self.entry_cari.grid(row=0, column=2, padx=5, sticky="ew")
+
+        # Tombol Cari
+        self.btn_cari = tk.Button(title_frame, text="Cari", command=self.cari_barang)
+        self.btn_cari.grid(row=0, column=3, padx=5, sticky="e")
+
+        # Konfigurasi kolom untuk title_frame agar responsif
+        title_frame.grid_columnconfigure(0, weight=1)
+        title_frame.grid_columnconfigure(2, weight=1)
+
+        # Treeview untuk daftar barang
         self.treeview_barang = ttk.Treeview(self, columns=("Nama", "Harga Beli", "Harga Jual", "Stok", "Vendor", "Total Harga"), show="headings")
         self.treeview_barang.heading("Nama", text="Nama Barang")
         self.treeview_barang.heading("Harga Beli", text="Harga Beli")
@@ -46,6 +69,12 @@ class AplikasiInventaris(tk.Tk):
 
         self.update_treeview()
 
+        # Tambahkan scroll jika diperlukan
+        scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.treeview_barang.yview)
+        self.treeview_barang.configure(yscroll=scrollbar.set)
+        scrollbar.grid(row=1, column=2, sticky="ns")
+
+        # Frame untuk tombol-tombol utama
         button_frame = tk.Frame(self)
         button_frame.grid(row=2, column=0, columnspan=2, pady=5)
 
@@ -58,78 +87,162 @@ class AplikasiInventaris(tk.Tk):
         self.btn_hapus = tk.Button(button_frame, text="Hapus Barang", command=self.hapus_barang)
         self.btn_hapus.pack(side=tk.LEFT, padx=5)
 
+        # Tombol Beli Barang
         self.btn_beli = tk.Button(self, text="Beli Barang", command=self.beli_barang)
         self.btn_beli.grid(row=3, column=0, pady=5, padx=5, sticky="ew")
 
+        # Tombol Jual Barang
         self.btn_jual = tk.Button(self, text="Jual Barang", command=self.jual_barang)
         self.btn_jual.grid(row=3, column=1, pady=5, padx=5, sticky="ew")
 
+        # Tombol Tampilkan Transaksi
         self.btn_trans = tk.Button(self, text="Tampilkan Transaksi", command=self.tampilkan_transaksi)
         self.btn_trans.grid(row=4, column=0, columnspan=2, pady=5, padx=5, sticky="ew")
 
-        self.label_cari = tk.Label(self, text="Cari Nama Barang:")
-        self.label_cari.grid(row=5, column=0, pady=5, padx=5, sticky="e")
-        self.entry_cari = tk.Entry(self)
-        self.entry_cari.grid(row=5, column=1, pady=5, padx=5, sticky="ew")
-        self.btn_cari = tk.Button(self, text="Cari", command=self.cari_barang)
-        self.btn_cari.grid(row=5, column=2, pady=5, padx=5, sticky="w")
+        # Tombol Logout
+        self.btn_logout = tk.Button(self, text="Logout", command=self.logout)
+        self.btn_logout.grid(row=5, column=0, pady=5, padx=5, sticky="w")
 
+        # Konfigurasi grid untuk responsivitas
         self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
+        self.grid_columnconfigure(2, weight=1)
+        self.grid_columnconfigure(3, weight=1)
 
     def update_treeview(self, results=None):
         self.treeview_barang.delete(*self.treeview_barang.get_children())
-        query = "SELECT nama, harga_beli, harga_jual, stok, vendor FROM data_barang"
+
+        query = "SELECT id, nama, harga_beli, harga_jual, stok, vendor FROM data_barang"
         self.cursor.execute(query)
         data = self.cursor.fetchall()
 
         for row in data:
-            total_harga = row[1] * row[3]
-            self.treeview_barang.insert("", tk.END, values=[row[0], row[1], row[2], row[3], row[4], total_harga])
+            total_harga = row[2] * row[4]
+            self.treeview_barang.insert("", tk.END, iid=row[0], values=[row[1], row[2], row[3], row[4], row[5], total_harga])
 
     def tambah_barang(self):
-        nama = simpledialog.askstring("Tambah Barang", "Masukkan nama barang:")
-        harga_beli = float(simpledialog.askstring("Tambah Barang", "Masukkan harga beli barang:"))
-        harga_jual = float(simpledialog.askstring("Tambah Barang", "Masukkan harga jual barang:"))
-        stok = int(simpledialog.askstring("Tambah Barang", "Masukkan stok barang:"))
-        vendor = simpledialog.askstring("Tambah Barang", "Masukkan vendor barang:")
+        def submit_barang():
+            nama = entry_nama.get().strip()
+            harga_beli = entry_harga_beli.get().strip()
+            harga_jual = entry_harga_jual.get().strip()
+            stok = entry_stok.get().strip()
+            vendor = entry_vendor.get().strip()
 
-        query = "INSERT INTO data_barang (nama, harga_beli, harga_jual, stok, vendor) VALUES (%s, %s, %s, %s, %s)"
-        self.cursor.execute(query, (nama, harga_beli, harga_jual, stok, vendor))
-        self.conn.commit()
+            query = "INSERT INTO data_barang (nama, harga_beli, harga_jual, stok, vendor) VALUES (%s, %s, %s, %s, %s)"
+            self.cursor.execute(query, (nama, harga_beli, harga_jual, stok, vendor))
+            self.conn.commit()
 
-        self.update_treeview()
+            self.update_treeview()
+            messagebox.showinfo("Success", f"Barang '{nama}' berhasil ditambahkan!")
+            window.destroy()
+
+        # Window input data barang
+        window = tk.Toplevel(self)
+        window.title("Tambah Barang")
+        window.geometry("500x400")
+
+        tk.Label(window, text="Nama Barang:").pack(pady=5)
+        entry_nama = tk.Entry(window)
+        entry_nama.pack(pady=5)
+
+        tk.Label(window, text="Harga Beli:").pack(pady=5)
+        entry_harga_beli = tk.Entry(window)
+        entry_harga_beli.pack(pady=5)
+
+        tk.Label(window, text="Harga Jual:").pack(pady=5)
+        entry_harga_jual = tk.Entry(window)
+        entry_harga_jual.pack(pady=5) 
+
+        tk.Label(window, text="Stock:").pack(pady=5)
+        entry_stok = tk.Entry(window)
+        entry_stok.pack(pady=5)  
+
+        tk.Label(window, text="Vendor:").pack(pady=5)
+        entry_vendor = tk.Entry(window)
+        entry_vendor.pack(pady=5)
+
+        tk.Button(window, text="Submit", command=submit_barang).pack(pady=10)    
 
     def edit_barang(self):
         selected_item = self.treeview_barang.selection()
-        if selected_item:
-            item = self.treeview_barang.item(selected_item)
-            nama_lama = item['values'][0]
-            
-            nama = simpledialog.askstring("Edit Barang", "Masukkan nama barang:", initialvalue=nama_lama)
-            harga_beli = float(simpledialog.askstring("Edit Barang", "Masukkan harga beli barang:", initialvalue=item['values'][1]))
-            harga_jual = float(simpledialog.askstring("Edit Barang", "Masukkan harga jual barang:", initialvalue=item['values'][2]))
-            stok = int(simpledialog.askstring("Edit Barang", "Masukkan stok barang:", initialvalue=item['values'][3]))
-            vendor = simpledialog.askstring("Edit Barang", "Masukkan vendor barang:", initialvalue=item['values'][4])
+        if not selected_item:
+            messagebox.showerror("Error", "Pilih barang yang ingin diedit!")
+            return
+        
+        id_barang = selected_item[0]
+        item = self.treeview_barang.item(selected_item)
+        nama_lama = item['values'][0]
+        
+        def submit_edit():
+            new_nama = entry_nama.get().strip()
+            new_harga_beli = entry_harga_beli.get().strip()
+            new_harga_jual = entry_harga_jual.get().strip()
+            new_stok = entry_stok.get().strip()
+            new_vendor = entry_vendor.get().strip()
 
-            query = "UPDATE data_barang SET nama=%s, harga_beli=%s, harga_jual=%s, stok=%s, vendor=%s WHERE nama=%s"
-            self.cursor.execute(query, (nama, harga_beli, harga_jual, stok, vendor, nama_lama))
+            if not new_nama or not new_harga_beli or not new_harga_jual or not new_stok or not new_vendor:
+                messagebox.showerror("Error", "Semua kolom harus diisi!")
+                return
+
+            query = "UPDATE data_barang SET nama=%s, harga_beli=%s, harga_jual=%s, stok=%s, vendor=%s WHERE id=%s"
+            self.cursor.execute(query, (new_nama, new_harga_beli, new_harga_jual, new_stok, new_vendor, id_barang))
             self.conn.commit()
 
             self.update_treeview()
+            messagebox.showinfo("Success", f"User '{nama_lama}' berhasil diperbarui!")
+            window.destroy()
+        
+        # Window input
+        window = tk.Toplevel(self)
+        window.title("Edit Barang")
+        window.geometry("500x400")
+
+        tk.Label(window, text="Nama Barang:").pack(pady=5)
+        entry_nama = tk.Entry(window)
+        entry_nama.insert(0, nama_lama)
+        entry_nama.pack(pady=5)
+
+        tk.Label(window, text="Harga Beli:").pack(pady=5)
+        entry_harga_beli = tk.Entry(window)
+        entry_harga_beli.insert(0, item['values'][1])
+        entry_harga_beli.pack(pady=5)
+
+        tk.Label(window, text="Harga Jual:").pack(pady=5)
+        entry_harga_jual = tk.Entry(window)
+        entry_harga_jual.insert(0, item['values'][2])
+        entry_harga_jual.pack(pady=5) 
+
+        tk.Label(window, text="Stock:").pack(pady=5)
+        entry_stok = tk.Entry(window)
+        entry_stok.insert(0, item['values'][3])
+        entry_stok.pack(pady=5)  
+
+        tk.Label(window, text="Vendor:").pack(pady=5)
+        entry_vendor = tk.Entry(window)
+        entry_vendor.insert(0, item['values'][4])
+        entry_vendor.pack(pady=5)
+
+        tk.Button(window, text="Submit", command=submit_edit).pack(pady=10)
 
     def hapus_barang(self):
         selected_item = self.treeview_barang.selection()
-        if selected_item:
-            item = self.treeview_barang.item(selected_item)
-            nama = item['values'][0]
+        if not selected_item:
+            messagebox.showerror("Error", "Pilih barang yang ingin dihapus!")
+            return
+        
+        id_barang = selected_item[0]
+        item = self.treeview_barang.item(selected_item)
+        nama = item['values'][0]
 
-            query = "DELETE FROM data_barang WHERE nama=%s"
-            self.cursor.execute(query, (nama,))
+        confirm = messagebox.askyesno("Konfirmasi", f"Apakah Anda yakin ingin menghapus barang '{nama}'?")
+        if confirm:
+            query = "DELETE FROM data_barang WHERE id=%s"
+            self.cursor.execute(query, (id_barang,))
             self.conn.commit()
 
             self.update_treeview()
+            messagebox.showinfo("Success", f"Barang '{nama}' berhasil dihapus!")
 
     def beli_barang(self):
         selected_item = self.treeview_barang.selection()
@@ -193,16 +306,29 @@ class AplikasiInventaris(tk.Tk):
             treeview_trans.insert("", tk.END, values=row)
 
     def cari_barang(self):
-        query = self.entry_cari.get().lower()
-        results = []
-        query_db = "SELECT * FROM data_barang WHERE LOWER(nama) LIKE %s"
-        self.cursor.execute(query_db, (f"%{query}%",))
+        keyword = self.entry_cari.get().strip().lower()
+
+        if not keyword:
+            self.update_treeview()
+            return
+        
+        sql = "SELECT nama, harga_beli, harga_jual, stok, vendor FROM data_barang WHERE nama LIKE %s"
+        self.cursor.execute(sql, (f"%{keyword}%",))
         results = self.cursor.fetchall()
 
         if results:
-            self.update_treeview([Barang(row[0], row[1], row[2], row[3], row[4]) for row in results])
+            self.treeview_barang.delete(*self.treeview_barang.get_children())
+            for row in results:
+                self.treeview_barang.insert("", tk.END, values=[row[0], row[1], row[2], row[3], row[4]])
         else:
-            messagebox.showinfo("Info", "Barang tidak ditemukan.")
+            messagebox.showinfo("Info", "barang tidak ditemukan.")
+
+    def logout(self):
+        confirm = messagebox.askyesno("Konfirmasi Logout", "Apakah Anda yakin ingin logout?")
+        if confirm:
+            messagebox.showinfo("Logout", "Anda berhasil logout.")
+            self.destroy()
+            call(['python', 'login.py'])
 
 if __name__ == "__main__":
     app = AplikasiInventaris()
